@@ -25,7 +25,12 @@ $(document).ready(function() {
                             if (result.length > 0) {
                                 // Grab current ports for comparison
                                 var old_port_list;
-                                chrome.serial.getPorts(function(ports) {
+                                chrome.serial.getDevices(function(devices) {
+                                    var ports = [];
+                                    devices.forEach(function(device) {
+                                        ports.push(device.path);
+                                    });
+                                    
                                     if (ports.length > 0) {
                                         old_port_list = ports;
                                         
@@ -39,7 +44,12 @@ $(document).ready(function() {
                                                         if (debug) console.log('atmega32u4 was switched to programming mode via 1200 baud trick');
                                                         
                                                         GUI.interval_add('atmega32u4_new_port_search', function() {
-                                                            chrome.serial.getPorts(function(new_port_list) {   
+                                                            chrome.serial.getDevices(function(devices) {
+                                                                var new_port_list = [];
+                                                                devices.forEach(function(device) {
+                                                                    new_port_list.push(device.path);
+                                                                });
+                                                                
                                                                 if (old_port_list.length > new_port_list.length) {
                                                                     // find removed port (for debug purposes only)
                                                                     var removed_ports = array_difference(old_port_list, new_port_list);
@@ -69,7 +79,12 @@ $(document).ready(function() {
                                                                                         connectionId = -1; // reset connection id
                                                                                         
                                                                                         GUI.interval_add('atmega32u4_connect_to_previous_port', function() {
-                                                                                            chrome.serial.getPorts(function(ports) {
+                                                                                            chrome.serial.getDevices(function(devices) {
+                                                                                                var ports = [];
+                                                                                                devices.forEach(function(device) {
+                                                                                                    ports.push(device.path);
+                                                                                                });
+                                                                                            
                                                                                                 for (var i = 0; i < ports.length; i++) {
                                                                                                     if (ports[i] == selected_port) {
                                                                                                         // port matches previously selected port, continue connection procedure
@@ -212,7 +227,12 @@ function serial_auto_connect() {
     var initial_ports = false;
     
     GUI.interval_add('auto-connect', function() {
-        chrome.serial.getPorts(function(current_ports) {
+        chrome.serial.getDevices(function(devices) {
+            var current_ports = [];
+            devices.forEach(function(device) {
+                current_ports.push(device.path);
+            });
+            
             if (initial_ports.length > current_ports.length || !initial_ports) {
                 // port got removed or initial_ports wasn't initialized yet
                 var removed_ports = array_difference(initial_ports, current_ports);

@@ -61,7 +61,12 @@ AVR109_protocol.prototype.connect = function() {
     
     // request current port list
     var old_port_list;
-    chrome.serial.getPorts(function(ports) {
+    chrome.serial.getDevices(function(devices) {
+        var ports = [];
+        devices.forEach(function(device) {
+            ports.push(device.path);
+        });
+        
         if (ports.length > 0) {
             old_port_list = ports;
             if (debug) console.log('AVR109 - Grabbing current port list: ' + old_port_list);
@@ -82,7 +87,12 @@ AVR109_protocol.prototype.connect = function() {
                                 var retry = 0;
                                 
                                 GUI.interval_add('AVR109_new_port_search', function() {
-                                    chrome.serial.getPorts(function(new_port_list) {   
+                                    chrome.serial.getDevices(function(devices) {   
+                                        var new_port_list = [];
+                                        devices.forEach(function(device) {
+                                            new_port_list.push(device.path);
+                                        });
+                                        
                                         if (old_port_list.length > new_port_list.length) {
                                             // find removed port (for debug purposes only)
                                             var removed_ports = array_difference(old_port_list, new_port_list);
