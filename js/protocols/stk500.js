@@ -106,7 +106,7 @@ STK500_protocol.prototype.connect = function() {
     var selected_port = String($('div#port-picker .port select').val());
     
     if (selected_port != '0') {
-        chrome.serial.open(selected_port, {bitrate: 57600}, function(openInfo) {
+        chrome.serial.connect(selected_port, {bitrate: 57600}, function(openInfo) {
             connectionId = openInfo.connectionId;
             
             if (connectionId != -1) {       
@@ -144,9 +144,9 @@ STK500_protocol.prototype.initialize = function() {
     
     self.upload_time_start = microtime(); 
     
-    GUI.interval_add('firmware_uploader_read', function() {
-        self.read();
-    }, 1, true);
+    chrome.serial.onReceive.addListener(function(info) {
+        self.read(info);
+    });
     
     var upload_procedure_retry = 0;
     if (debug) console.log('Sending DTR command ...');
@@ -201,22 +201,18 @@ STK500_protocol.prototype.initialize = function() {
 // no input parameters
 // this method should be executed every 1 ms via interval timer 
 // (cant use "slower" timer because standard arduino bootloader uses 16ms command timeout)
-STK500_protocol.prototype.read = function() {
+STK500_protocol.prototype.read = function(readInfo) {
     var self = this;
+
+    var data = new Uint8Array(readInfo.data);
     
-    chrome.serial.read(connectionId, 128, function(readInfo) {
-        if (readInfo && readInfo.bytesRead > 0) { 
-            var data = new Uint8Array(readInfo.data);
-            
-            for (var i = 0; i < data.length; i++) {
-                self.receive_buffer[self.receive_buffer_i++] = data[i];
-                
-                if (self.receive_buffer_i == self.bytes_to_read) {                      
-                    self.read_callback(self.receive_buffer); // callback with buffer content
-                }  
-            }
-        }
-    });
+    for (var i = 0; i < data.length; i++) {
+        self.receive_buffer[self.receive_buffer_i++] = data[i];
+        
+        if (self.receive_buffer_i == self.bytes_to_read) {                      
+            self.read_callback(self.receive_buffer); // callback with buffer content
+        }  
+    }
 };
 
 // Array = array of bytes that will be send over serial
@@ -238,7 +234,7 @@ STK500_protocol.prototype.send = function(Array, bytes_to_read, callback) {
     this.receive_buffer_i = 0;
 
     // send over the actual data
-    chrome.serial.write(connectionId, bufferOut, function(writeInfo) {}); 
+    chrome.serial.send(connectionId, bufferOut, function(writeInfo) {}); 
 };
 
 // pattern array = [[byte position in response, value], n]
@@ -433,14 +429,19 @@ STK500_protocol.prototype.upload_procedure = function(step) {
             break;
         case 99: 
             // disconnect
-            GUI.interval_remove('firmware_uploader_read'); // stop reading serial
+            
+            // remove listeners
+            chrome.serial.onReceive.listeners_.forEach(function(listener) {
+                chrome.serial.onReceive.removeListener(listener.callback);
+            });
+            
             GUI.interval_remove('STK_timeout'); // stop stk timeout timer (everything is finished now)
             
             if (debug) console.log('Script finished after: ' + (microtime() - self.upload_time_start).toFixed(4) + ' seconds');
             if (debug) console.log('Script finished after: ' + self.steps_executed + ' steps');
             
             // close connection
-            chrome.serial.close(connectionId, function(result) {
+            chrome.serial.disconnect(connectionId, function(result) {
                 if (result) { // All went as expected
                     if (debug) console.log('Connection closed successfully.');
                     command_log('<span style="color: green">Successfully</span> closed serial connection');

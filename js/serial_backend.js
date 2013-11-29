@@ -148,7 +148,10 @@ $(document).ready(function() {
                         GUI.interval_kill_all(['auto-connect']); // auto-connect is kept alive
                         PSP.callbacks = []; // empty PSP callbacks array (this is only required if user hot-disconnect)
                         
-                        chrome.serial.onReceive.removeListener(serial_read);
+                        // remove listeners
+                        chrome.serial.onReceive.listeners_.forEach(function(listener) {
+                            chrome.serial.onReceive.removeListener(listener.callback);
+                        });
                         
                         chrome.serial.disconnect(connectionId, onClosed);
                     }, 50);
