@@ -37,7 +37,7 @@ $(document).ready(function() {
                                         // opening port at 1200 baud rate, sending nothing, closing == mcu in programmer mode
                                         chrome.serial.connect(selected_port, {bitrate: 1200}, function(result) {
                                             if (result.connectionId != -1) {
-                                                chrome.serial.close(result.connectionId, function(result) {
+                                                chrome.serial.disconnect(result.connectionId, function(result) {
                                                     if (result) {
                                                         // disconnected succesfully, now we will wait/watch for new serial port to appear
                                                         
@@ -75,7 +75,7 @@ $(document).ready(function() {
                                                                                 
                                                                                 // send over the actual data
                                                                                 chrome.serial.send(connectionId, bufferOut, function(result) {
-                                                                                    chrome.serial.close(connectionId, function(result) {
+                                                                                    chrome.serial.disconnect(connectionId, function(result) {
                                                                                         connectionId = -1; // reset connection id
                                                                                         
                                                                                         GUI.interval_add('atmega32u4_connect_to_previous_port', function() {
