@@ -49,7 +49,7 @@ STM32_protocol.prototype.connect = function() {
     var selected_port = String($('div#port-picker .port select').val());
     
     if (selected_port != '0') {
-        chrome.serial.open(selected_port, {bitrate: 115200, parityBit: 'evenparity', stopBit: 'onestopbit'}, function(openInfo) {
+        chrome.serial.connect(selected_port, {bitrate: 115200, parityBit: 'even', stopBits: 'one'}, function(openInfo) {
             connectionId = openInfo.connectionId;
             
             if (connectionId != -1) {       
@@ -88,8 +88,12 @@ STM32_protocol.prototype.initialize = function() {
     self.steps_executed = 0;
     self.steps_executed_last = 0;
 
+    chrome.serial.onReceive.addListener(function(info) {
+        self.read(info);
+    });    
+    
     GUI.interval_add('firmware_uploader_read', function() {
-        self.read();
+        self.process_read();
     }, 1, true);
     
     GUI.interval_add('STM32_timeout', function() {
@@ -113,19 +117,20 @@ STM32_protocol.prototype.initialize = function() {
 
 // no input parameters
 // this method should be executed every 1 ms via interval timer
-STM32_protocol.prototype.read = function() {
+STM32_protocol.prototype.read = function(readInfo) {
     var self = this;
     
     // routine that fills the buffer
-    chrome.serial.read(connectionId, 128, function(readInfo) {
-        if (readInfo && readInfo.bytesRead > 0) { 
-            var data = new Uint8Array(readInfo.data);
-            
-            for (var i = 0; i < data.length; i++) {
-                self.receive_buffer.push(data[i]);  
-            }
-        }
-    });
+    var data = new Uint8Array(readInfo.data);
+    
+    for (var i = 0; i < data.length; i++) {
+        self.receive_buffer.push(data[i]);  
+    }
+};
+
+// read routine is split into 2 functions after new serial api arrived (this needs to be resolved and merged into one routine)
+STM32_protocol.prototype.process_read = function() {
+    var self = this;
     
     // routine that fetches data from buffer if statement is true
     if (self.receive_buffer.length >= self.bytes_to_read && self.bytes_to_read != 0) {
@@ -153,7 +158,7 @@ STM32_protocol.prototype.send = function(Array, bytes_to_read, callback) {
     this.read_callback = callback; 
 
     // send over the actual data
-    chrome.serial.write(connectionId, bufferOut, function(writeInfo) {}); 
+    chrome.serial.send(connectionId, bufferOut, function(writeInfo) {}); 
 };
 
 // val = single byte to be verified 
@@ -464,6 +469,12 @@ STM32_protocol.prototype.upload_procedure = function(step) {
             break;
         case 99:
             // disconnect
+            
+            // remove listeners
+            chrome.serial.onReceive.listeners_.forEach(function(listener) {
+                chrome.serial.onReceive.removeListener(listener.callback);
+            });
+            
             GUI.interval_remove('firmware_uploader_read'); // stop reading serial
             GUI.interval_remove('STM32_timeout'); // stop STM32 timeout timer (everything is finished now)
             
@@ -471,7 +482,7 @@ STM32_protocol.prototype.upload_procedure = function(step) {
             if (debug) console.log('Script finished after: ' + self.steps_executed + ' steps');
             
             // close connection
-            chrome.serial.close(connectionId, function(result) {
+            chrome.serial.disconnect(connectionId, function(result) {
                 if (result) { // All went as expected
                     if (debug) console.log('Connection closed successfully.');
                     command_log('<span style="color: green">Successfully</span> closed serial connection');
