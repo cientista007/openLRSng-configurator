@@ -288,7 +288,7 @@ STM32_protocol.prototype.upload_procedure = function(step) {
                     command_log('STM32 Initial Communication with bootloader <span style="color: red">Failed</span>');
                     
                     // disconnect
-                    this.upload_procedure(99);
+                    self.upload_procedure(99);
                 }
             });
             break;
