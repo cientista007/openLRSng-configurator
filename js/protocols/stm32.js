@@ -90,11 +90,7 @@ STM32_protocol.prototype.initialize = function() {
 
     chrome.serial.onReceive.addListener(function(info) {
         self.read(info);
-    });    
-    
-    GUI.interval_add('firmware_uploader_read', function() {
-        self.process_read();
-    }, 1, true);
+    });
     
     GUI.interval_add('STM32_timeout', function() {
         if (self.steps_executed > self.steps_executed_last) { // process is running
@@ -126,11 +122,6 @@ STM32_protocol.prototype.read = function(readInfo) {
     for (var i = 0; i < data.length; i++) {
         self.receive_buffer.push(data[i]);  
     }
-};
-
-// read routine is split into 2 functions after new serial api arrived (this needs to be resolved and merged into one routine)
-STM32_protocol.prototype.process_read = function() {
-    var self = this;
     
     // routine that fetches data from buffer if statement is true
     if (self.receive_buffer.length >= self.bytes_to_read && self.bytes_to_read != 0) {
@@ -141,6 +132,13 @@ STM32_protocol.prototype.process_read = function() {
         
         self.read_callback(data);
     }
+};
+
+STM32_protocol.prototype.retrieve = function(n_bytes, callback) {
+    var data = this.receive_buffer.slice(0, n_bytes);
+    this.receive_buffer.splice(0, n_bytes); // remove read bytes
+    
+    callback(data);
 };
 
 // Array = array of bytes that will be send over serial
@@ -296,9 +294,9 @@ STM32_protocol.prototype.upload_procedure = function(step) {
             break;
         case 2:
             // get version of the bootloader and supported commands
-            self.send([self.command.get, 0xFF], 2, function(data) { // 0x00 ^ 0xFF               
+            self.send([self.command.get, 0xFF], 2, function(data) { // 0x00 ^ 0xFF  
                 if (self.verify_response(self.status.ACK, data)) {
-                    self.send([], data[1] + 2, function(data) {  // data[1] = number of bytes that will follow (should be 12 + ack)
+                    self.retrieve(data[1] + 2, function(data) {  // data[1] = number of bytes that will follow (should be 12 + ack)
                         if (debug) console.log('STM32 - Bootloader version: ' + (parseInt(data[0].toString(16)) / 10).toFixed(1)); // convert dec to hex, hex to dec and add floating point
                         
                         // proceed to next step
@@ -311,7 +309,7 @@ STM32_protocol.prototype.upload_procedure = function(step) {
             // get ID (device signature)
             self.send([self.command.get_ID, 0xFD], 2, function(data) { // 0x01 ^ 0xFF
                 if (self.verify_response(self.status.ACK, data)) {
-                    self.send([], data[1] + 2, function(data) { // data[1] = number of bytes that will follow (should be 1 + ack), its 2 + ack, WHY ???
+                    self.retrieve(data[1] + 2, function(data) { // data[1] = number of bytes that will follow (should be 1 + ack), its 2 + ack, WHY ???
                         var signature = (data[0] << 8) | data[1];
                         if (debug) console.log('STM32 - Signature: 0x' + signature.toString(16)); // signature in hex representation
                         
@@ -417,7 +415,7 @@ STM32_protocol.prototype.upload_procedure = function(step) {
                                 
                                 self.send([bytes_to_read_n, (~bytes_to_read_n) & 0xFF], 1, function(reply) { // bytes to be read + checksum XOR(complement of bytes_to_read_n)
                                     if (self.verify_response(self.status.ACK, reply)) {
-                                        self.send([], data_length, function(data) {
+                                        self.retrieve(data_length, function(data) {
                                             for (var i = 0; i < data.length; i++) {
                                                 self.verify_hex.push(data[i]);
                                                 self.bytes_verified++;
@@ -480,7 +478,6 @@ STM32_protocol.prototype.upload_procedure = function(step) {
                 chrome.serial.onReceive.removeListener(listener.callback);
             });
             
-            GUI.interval_remove('firmware_uploader_read'); // stop reading serial
             GUI.interval_remove('STM32_timeout'); // stop STM32 timeout timer (everything is finished now)
             
             if (debug) console.log('Script finished after: ' + (microtime() - self.upload_time_start).toFixed(4) + ' seconds');
