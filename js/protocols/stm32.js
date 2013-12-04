@@ -69,7 +69,7 @@ STM32_protocol.prototype.connect = function() {
             connectionId = openInfo.connectionId;
             
             if (connectionId != -1) {       
-                if (debug) console.log('Connection was opened with ID: ' + connectionId);
+                if (debug) console.log('Connection was opened with ID: ' + connectionId + ' Baud: ' + flashing_bitrate);
                 command_log('Connection <span style="color: green">successfully</span> opened with ID: ' + connectionId);
 
                 // we are connected, disabling connect button in the UI
