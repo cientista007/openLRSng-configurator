@@ -49,7 +49,22 @@ STM32_protocol.prototype.connect = function() {
     var selected_port = String($('div#port-picker .port select').val());
     
     if (selected_port != '0') {
-        chrome.serial.connect(selected_port, {bitrate: 115200, parityBit: 'even', stopBits: 'one'}, function(openInfo) {
+        // calculate fastest bitrate speed for current OS
+        switch (GUI.operating_system) {
+            case 'Windows':
+                var flashing_bitrate = 256000;
+                break;
+            case 'MacOS':
+                var flashing_bitrate = 230400;
+                break;
+            case 'ChromeOS':
+            case 'Linux':
+            case 'UNIX':
+                var flashing_bitrate = 230400;
+                break;
+        }
+        
+        chrome.serial.connect(selected_port, {bitrate: flashing_bitrate, parityBit: 'even', stopBits: 'one'}, function(openInfo) {
             connectionId = openInfo.connectionId;
             
             if (connectionId != -1) {       
